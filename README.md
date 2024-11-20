@@ -6,6 +6,8 @@ A safe Rust implementation for manipulating the NVIDIA overlay window using wind
 
 This crate uses windows-rs for safe Windows API bindings and proper resource management.
 
+Demo: https://www.youtube.com/watch?v=k2PsMplcYa8
+
 ## Usage
 ```rust
 use nvidia_overlay_hijack::{Overlay, OverlayError};
