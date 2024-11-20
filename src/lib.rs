@@ -5,44 +5,30 @@ pub mod helper;
 
 use crate::{
     core::{Overlay, OverlayError},
-    helper::{OverlayHelper},
 };
 
 use std::ffi::OsStr;
 use std::os::windows::prelude::OsStrExt;
-use std::ptr::null_mut;
-// Figure out imports
 use windows::{
-    core::{Interface,
-           PCSTR,
+    core::{PCSTR,
            PCWSTR,
-           Result as WindowsResult,
            w, // A literal UTF-16 wide string with a trailing null terminator.
     },
     Win32::Graphics::{
         Direct2D::{
             D2D1CreateFactory,
             ID2D1Factory,
-            ID2D1HwndRenderTarget,
             D2D1_FACTORY_TYPE_SINGLE_THREADED,
             D2D1_FEATURE_LEVEL_DEFAULT,
             D2D1_HWND_RENDER_TARGET_PROPERTIES,
-            D2D1_POINT_DESCRIPTION,
             D2D1_PRESENT_OPTIONS_NONE,
             D2D1_RENDER_TARGET_PROPERTIES,
             D2D1_RENDER_TARGET_TYPE_DEFAULT,
             D2D1_RENDER_TARGET_USAGE_NONE,
-            D2D1_DRAW_TEXT_OPTIONS_NONE,
-            D2D1_CAP_STYLE,
-            D2D1_LINE_JOIN,
-            D2D1_DASH_STYLE,
-            ID2D1StrokeStyle,
             Common::{
-                D2D_RECT_F,
                 D2D_SIZE_U,
                 D2D1_ALPHA_MODE_PREMULTIPLIED,
                 D2D1_PIXEL_FORMAT,
-                D2D_POINT_2F
             },
         },
         DirectWrite::{
@@ -57,7 +43,7 @@ use windows::{
         Dxgi::Common::DXGI_FORMAT_UNKNOWN,
         Dwm::DwmExtendFrameIntoClientArea,
     },
-    Win32::Foundation::{RECT, BOOL, SUCCESS, COLORREF},
+    Win32::Foundation::{RECT, COLORREF},
     Win32::UI::WindowsAndMessaging::{
         FindWindowA,
         GetClientRect,
@@ -66,13 +52,10 @@ use windows::{
         GWL_EXSTYLE, // = WINDOW_LONG_PTR_INDEX(-20)
         SetLayeredWindowAttributes,
         LWA_ALPHA, // = LAYERED_WINDOW_ATTRIBUTES_FLAGS(2u32)
-        LAYERED_WINDOW_ATTRIBUTES_FLAGS
     },
     Win32::UI::Controls::MARGINS,
 };
-use windows::Foundation::Rect;
 use windows::Win32::Foundation::HWND;
-use windows::Win32::Graphics::Direct2D::D2D1_STROKE_STYLE_PROPERTIES;
 use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, ShowWindow, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE, SW_SHOW};
 
 impl Overlay {
@@ -90,6 +73,7 @@ impl Overlay {
     }
 
     // CORE FUNCTIONALITY ----------------
+    /// Must be called prior to any rendering.
     pub fn init(&mut self) -> Result<(), OverlayError> {
         self.window = unsafe {
             // as_ptr() avoids allocating strings
@@ -269,32 +253,34 @@ impl Drop for Overlay {
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, Instant};
-
     use super::*;
 
     #[test]
     fn it_works() {
-        let mut overlay = Overlay::new("Consolas", 18.0);
+        let mut overlay = Overlay::new("Calibri", 18.0);
 
-        // call init
+        // Initialize overlay
         let init = overlay.init();
         if init.is_err() {
             println!("init failed");
-        } else {
+        }
+        else {
             println!("init success");
         }
 
-        // call startup_d2d
+        // Startup overlay rendering
         let startup_d2d = overlay.startup_d2d();
         if startup_d2d.is_err() {
             println!("startup_d2d failed");
-        } else {
+        }
+        else {
             println!("startup_d2d success");
         }
 
         println!("Successfully initialized, rendering for 10 seconds now..\n");
 
-        let color: (u8, u8, u8, u8) = (255, 51, 0, 255);
+        let red: (u8, u8, u8, u8) = (255, 51, 0, 255);
+        let green: (u8, u8, u8, u8) = (0, 255, 51, 255);
 
         // Show the overlay for 10 seconds
         let start = Instant::now();
@@ -303,10 +289,11 @@ mod tests {
             overlay.clear_scene();
             overlay.draw_text(
                 (10.0, 30.0),
-                "github.com/WilgnerFSDev/nvidia-overlay-hijack-rs".to_string(),
-                Some(color),
-            );
-            overlay.draw_rect((10.0, 80.0), (100.0, 100.0), 2.0, None);
+                "https://github.com/WakelandBranz/nvidia-overlay-hijack".to_string(),
+                Some(red),
+            ).expect("Failed to draw text");
+            overlay.draw_rect((10.0, 80.0), (100.0, 100.0), 2.0, None).expect("Failed to draw rectangle");
+            overlay.draw_circle((60.0, 250.0), 50.0, 4.0, Some(green)).expect("Failed to draw circle");
             overlay.end_scene();
         }
 

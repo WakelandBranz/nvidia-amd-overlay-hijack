@@ -1,11 +1,15 @@
 use windows::Win32::Graphics::Direct2D::Common::{D2D_POINT_2F, D2D_RECT_F};
-use windows::Win32::Graphics::Direct2D::D2D1_DRAW_TEXT_OPTIONS_NONE;
+use windows::Win32::Graphics::Direct2D::{D2D1_DRAW_TEXT_OPTIONS_NONE, D2D1_ELLIPSE};
 use crate::helper::*;
 use super::*;
 
 impl Overlay {
-    // END CORE FUNCTIONALITY ----------------
-    pub fn draw_text(&mut self, (x, y): (f32, f32), text: String, color: Option<(u8, u8, u8, u8)>) -> Result <(), OverlayError> {
+    pub fn draw_text(
+        &mut self,
+        (x, y): (f32, f32),
+        text: String,
+        color: Option<(u8, u8, u8, u8)>
+    ) -> Result <(), OverlayError> {
         let text_layout = self.create_text_layout(&text).expect("Failed to get text_layout");
 
         self.draw_element(
@@ -21,7 +25,13 @@ impl Overlay {
         ).map_err(|_| OverlayError::DrawTextFailed(-1)) // Usually I'd use a match statement but this is already super nested.
     }
 
-    pub fn draw_rect(&mut self, (x, y): (f32, f32), (width, height): (f32, f32), stroke_width: f32, color: Option<(u8, u8, u8, u8)>) -> Result <(), OverlayError> {
+    pub fn draw_rect(
+        &mut self,
+        (x, y): (f32, f32),
+        (width, height): (f32, f32),
+        stroke_width: f32,
+        color: Option<(u8, u8, u8, u8)>
+    ) -> Result <(), OverlayError> {
         let rect = D2D_RECT_F {
             left: x,
             top: y,
@@ -48,5 +58,29 @@ impl Overlay {
                 target.DrawRectangle(&rect, brush, stroke_width, None)
             }
         ).map_err(|_| OverlayError::DrawTextFailed(-1)) // Usually I'd use a match statement but this is already super nested.
+    }
+
+    pub fn draw_circle(
+        &mut self,
+        center: (f32, f32),  // Center point instead of top-left
+        radius: f32,         // Single radius value for circle
+        stroke_width: f32,
+        color: Option<(u8, u8, u8, u8)>
+    ) -> Result<(), OverlayError> {
+        let ellipse = D2D1_ELLIPSE {
+            point: D2D_POINT_2F {
+                x: center.0,
+                y: center.1,
+            },
+            radiusX: radius,
+            radiusY: radius,  // Same radius for both axes makes it a circle
+        };
+
+        self.draw_element(
+            color.unwrap_or((255, 255, 255, 255)),
+            |target, brush| unsafe {
+                target.DrawEllipse(&ellipse, brush, stroke_width, None)
+            }
+        ).map_err(|_| OverlayError::DrawTextFailed(-1))
     }
 }

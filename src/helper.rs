@@ -42,9 +42,6 @@ impl OverlayHelper for Overlay {
     }
 
     fn create_text_layout(&self, text: &str) -> WindowsResult<IDWriteTextLayout> {
-        let format = self.format.as_ref()
-            .expect("No text format available");
-
         let mut rc: RECT = RECT::default();
         unsafe {
             GetWindowRect(self.window, &mut rc)
@@ -78,7 +75,7 @@ impl OverlayHelper for Overlay {
             .expect("No render target available");
 
         // Cast the brush
-        let brush_interface: ID2D1Brush = unsafe { brush.cast()? };
+        let brush_interface: ID2D1Brush = brush.cast()?;
 
         draw(target, &brush_interface);
 
