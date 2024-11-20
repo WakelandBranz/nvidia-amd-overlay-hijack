@@ -1,3 +1,5 @@
+mod draw;
+
 use windows::{
     Win32::Foundation::HWND,
     Win32::Graphics::{
