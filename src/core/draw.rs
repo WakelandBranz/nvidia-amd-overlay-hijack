@@ -30,7 +30,7 @@ impl Overlay {
         (x, y): (f32, f32),
         (width, height): (f32, f32),
         stroke_width: f32,
-        color: Option<(u8, u8, u8, u8)>
+        color: (u8, u8, u8, u8)
     ) -> Result <(), OverlayError> {
         let rect = D2D_RECT_F {
             left: x,
@@ -53,7 +53,7 @@ impl Overlay {
         //};
 
         self.draw_element(
-            color.unwrap_or((255, 255, 255, 255)), // Default to white if no color specified
+            color, // Default to white if no color specified
             |target, brush| unsafe {
                 target.DrawRectangle(&rect, brush, stroke_width, None)
             }
@@ -65,7 +65,7 @@ impl Overlay {
         center: (f32, f32),  // Center point instead of top-left
         radius: f32,         // Single radius value for circle
         stroke_width: f32,
-        color: Option<(u8, u8, u8, u8)>
+        color: (u8, u8, u8, u8)
     ) -> Result<(), OverlayError> {
         let ellipse = D2D1_ELLIPSE {
             point: D2D_POINT_2F {
@@ -77,7 +77,7 @@ impl Overlay {
         };
 
         self.draw_element(
-            color.unwrap_or((255, 255, 255, 255)),
+            color,
             |target, brush| unsafe {
                 target.DrawEllipse(&ellipse, brush, stroke_width, None)
             }

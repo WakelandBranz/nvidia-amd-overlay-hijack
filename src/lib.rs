@@ -43,7 +43,7 @@ use windows::{
         Dxgi::Common::DXGI_FORMAT_UNKNOWN,
         Dwm::DwmExtendFrameIntoClientArea,
     },
-    Win32::Foundation::{RECT, COLORREF},
+    Win32::Foundation::{RECT, COLORREF, HWND},
     Win32::UI::WindowsAndMessaging::{
         FindWindowA,
         GetClientRect,
@@ -52,23 +52,28 @@ use windows::{
         GWL_EXSTYLE, // = WINDOW_LONG_PTR_INDEX(-20)
         SetLayeredWindowAttributes,
         LWA_ALPHA, // = LAYERED_WINDOW_ATTRIBUTES_FLAGS(2u32)
+        SetWindowPos,
+        ShowWindow,
+        HWND_TOPMOST,
+        SWP_NOMOVE,
+        SWP_NOSIZE,
+        SW_SHOW,
     },
     Win32::UI::Controls::MARGINS,
 };
-use windows::Win32::Foundation::HWND;
-use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, ShowWindow, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE, SW_SHOW};
 
 impl Overlay {
-    pub fn new(font: &str, size:f32) -> Self {
+    pub fn new(font: impl ToString, size:f32) -> Self {
         Self {
             window: HWND::default(),
-            d2d_factory: None,
-            target: None,
+            d2d_factory: None, // Used for rendering 2d objects
+            target: None, // Used for rendering 2d objects
             write_factory: None,
             format: None,
 
             font: font.to_string(),
             font_size: size,
+            font_width: None, // This will be useful for calculating the width of a rendered string
         }
     }
 
@@ -117,13 +122,13 @@ impl Overlay {
         if set_layered_window_attributes.is_err() {
             return Err(OverlayError::FailedSetLayeredWindowAttributes);
         }
-        
+
         let set_window_pos = unsafe {
-            SetWindowPos(self.window, 
+            SetWindowPos(self.window,
                          HWND_TOPMOST, 0,
-                         0, 
                          0,
-                         0, 
+                         0,
+                         0,
                          SWP_NOMOVE | SWP_NOSIZE
             )
         };
@@ -211,10 +216,15 @@ impl Overlay {
             }
         };
 
+        let font_width: i32 = unsafe {
+            format.GetFontStretch().0
+        };
+
         self.d2d_factory = Some(d2d_factory);
         self.write_factory = Some(write_factory);
         self.format = Some(format);
         self.target = Some(target);
+        self.font_width = Some(font_width);
 
         Ok(())
     }
@@ -259,22 +269,22 @@ mod tests {
     fn it_works() {
         let mut overlay = Overlay::new("Calibri", 18.0);
 
-        // Initialize overlay
+        // Initialize nvidia_overlay
         let init = overlay.init();
         if init.is_err() {
-            println!("init failed");
+            println!("Failed to initialize nvidia_overlay");
         }
         else {
-            println!("init success");
+            println!("Successfully initialized nvidia_overlay");
         }
 
-        // Startup overlay rendering
+        // Startup nvidia_overlay rendering
         let startup_d2d = overlay.startup_d2d();
         if startup_d2d.is_err() {
-            println!("startup_d2d failed");
+            println!("Failed startup_d2d");
         }
         else {
-            println!("startup_d2d success");
+            println!("Succeeded in startup_d2d");
         }
 
         println!("Successfully initialized, rendering for 10 seconds now..\n");
@@ -282,7 +292,7 @@ mod tests {
         let red: (u8, u8, u8, u8) = (255, 51, 0, 255);
         let green: (u8, u8, u8, u8) = (0, 255, 51, 255);
 
-        // Show the overlay for 10 seconds
+        // Show the nvidia_overlay for 10 seconds
         let start = Instant::now();
         while start.elapsed() < Duration::from_secs(10) {
             overlay.begin_scene();
@@ -292,8 +302,8 @@ mod tests {
                 "https://github.com/WakelandBranz/nvidia-overlay-hijack".to_string(),
                 Some(red),
             ).expect("Failed to draw text");
-            overlay.draw_rect((10.0, 80.0), (100.0, 100.0), 2.0, None).expect("Failed to draw rectangle");
-            overlay.draw_circle((60.0, 250.0), 50.0, 4.0, Some(green)).expect("Failed to draw circle");
+            overlay.draw_rect((10.0, 80.0), (100.0, 100.0), 2.0, (255, 255, 0, 255)).expect("Failed to draw rectangle");
+            overlay.draw_circle((60.0, 250.0), 50.0, 4.0, green).expect("Failed to draw circle");
             overlay.end_scene();
         }
 

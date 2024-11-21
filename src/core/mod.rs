@@ -1,4 +1,5 @@
 mod draw;
+mod misc;
 
 use windows::{
     Win32::Foundation::HWND,
@@ -8,6 +9,10 @@ use windows::{
     },
 };
 
+// SAFETY: HANDLE is thread-safe as it's just an identifier
+// Not sure why this is necessary though.
+unsafe impl Send for Overlay {}
+unsafe impl Sync for Overlay {}
 
 pub struct Overlay {
     pub window: HWND,
@@ -18,6 +23,7 @@ pub struct Overlay {
     // ... other fields...
     pub font: String,
     pub font_size: f32,
+    pub font_width: Option<i32>,
 }
 
 #[derive(Debug)]
@@ -43,4 +49,6 @@ pub enum OverlayError {
     CreateBrushFailed(i32),
     CreateSolidColorBrushFailed,
     ID2D1BrushCastFailed,
+
+    FailedToGetFontWidth,
 }
