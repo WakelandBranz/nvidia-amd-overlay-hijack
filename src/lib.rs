@@ -243,13 +243,25 @@ impl Overlay {
             None => panic!("Render Target is None -> Attempted clear_scene without initializing overlay!"),
         }
     }
+
+    pub fn cleanup(&mut self) {
+        if self.target.is_some() {
+            self.begin_scene();
+            self.clear_scene();
+            self.end_scene();
+
+            // Explicitly drop D2D resources in the correct order
+            self.format.take();  // Drop text format first
+            self.target.take();  // Drop render target next
+            self.write_factory.take();  // Drop factories last
+            self.d2d_factory.take();
+        }
+    }
 }
 
 impl Drop for Overlay {
     fn drop(&mut self) {
-        self.begin_scene();
-        self.clear_scene();
-        self.end_scene();
+        self.cleanup()
     }
 }
 
