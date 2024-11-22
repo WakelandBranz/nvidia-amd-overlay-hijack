@@ -2,6 +2,8 @@
 
 A Rust library for hijacking the NVIDIA GeForce Experience overlay for custom rendering.
 
+Showcase: https://youtu.be/MKifNl3XCHQ
+
 Most code based off https://github.com/WilgnerFSDev/nvidia-overlay-hijack-rs/
 
 ## Basic Example
