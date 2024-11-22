@@ -244,11 +244,16 @@ impl Overlay {
         }
     }
 
+    /// Begins, clears, and ends the scene. Saves you on some lines of code
+    pub fn force_clear_scene(&mut self) {
+        self.begin_scene();
+        self.clear_scene();
+        self.end_scene();
+    }
+
     pub fn cleanup(&mut self) {
         if self.target.is_some() {
-            self.begin_scene();
-            self.clear_scene();
-            self.end_scene();
+            self.force_clear_scene();
 
             // Explicitly drop D2D resources in the correct order
             self.format.take();  // Drop text format first
