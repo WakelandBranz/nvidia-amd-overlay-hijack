@@ -10,7 +10,6 @@ use windows::{
 };
 
 // SAFETY: HWND is thread-safe as it's just an identifier
-// Not sure why this is necessary though.
 unsafe impl Send for Overlay {}
 unsafe impl Sync for Overlay {}
 
