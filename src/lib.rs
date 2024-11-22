@@ -263,47 +263,165 @@ impl Drop for Overlay {
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, Instant};
+    use windows::Win32::Graphics::Direct2D::D2D1_CAP_STYLE_ROUND;
     use super::*;
 
     #[test]
     fn it_works() {
-        let mut overlay = Overlay::new("Calibri", 18.0);
+        let mut overlay = Overlay::new("Comic Sans MS", 18.0);
 
         // Initialize nvidia_overlay
-        let init = overlay.init();
-        if init.is_err() {
-            println!("Failed to initialize nvidia_overlay");
-        }
-        else {
-            println!("Successfully initialized nvidia_overlay");
-        }
+        match overlay.init() {
+            Ok(_) => println!("Successfully initialized overlay"),
+            Err(_) => println!("Failed to initialize overlay")
+        };
 
         // Startup nvidia_overlay rendering
-        let startup_d2d = overlay.startup_d2d();
-        if startup_d2d.is_err() {
-            println!("Failed startup_d2d");
-        }
-        else {
-            println!("Succeeded in startup_d2d");
-        }
+         match overlay.startup_d2d() {
+             Ok(_) => println!("Succeeded in startup_d2d"),
+             Err(_) => println!("Failed startup_d2d"),
+         };
 
         println!("Successfully initialized, rendering for 10 seconds now..\n");
 
-        let red: (u8, u8, u8, u8) = (255, 51, 0, 255);
-        let green: (u8, u8, u8, u8) = (0, 255, 51, 255);
+        let red = (255, 51, 0, 255);
+        let green = (0, 255, 51, 255);
+        let blue = (0, 51, 255, 255);
+        let yellow = (255, 255, 0, 255);
+        let purple = (255, 0, 255, 255);
+        let cyan = (0, 255, 255, 255);
 
         // Show the nvidia_overlay for 10 seconds
         let start = Instant::now();
         while start.elapsed() < Duration::from_secs(10) {
             overlay.begin_scene();
             overlay.clear_scene();
+
+            // Text at the top
             overlay.draw_text(
                 (10.0, 30.0),
-                "https://github.com/WakelandBranz/nvidia-overlay-hijack".to_string(),
-                Some(red),
+                "https://github.com/WakelandBranz/nvidia-overlay-hijack\nShape Showcase".to_string(),
+                red,
             ).expect("Failed to draw text");
-            overlay.draw_rect((10.0, 80.0), (100.0, 100.0), 2.0, (255, 255, 0, 255)).expect("Failed to draw rectangle");
-            overlay.draw_circle((60.0, 250.0), 50.0, 4.0, green).expect("Failed to draw circle");
+
+            // Basic shapes
+            overlay.draw_rect(
+                (10.0, 100.0),
+                (100.0, 80.0),
+                2.0,
+                yellow
+            ).expect("Failed to draw rectangle");
+
+            overlay.draw_filled_rect(
+                (120.0, 100.0),
+                (100.0, 80.0),
+                green
+            ).expect("Failed to draw filled rectangle");
+
+            overlay.draw_gradient_rect(
+                (230.0, 100.0),
+                (100.0, 80.0),
+                red,
+                blue,
+                true
+            ).expect("Failed to draw gradient rectangle");
+
+            // Rounded rectangles
+            overlay.draw_rounded_rect(
+                (10.0, 200.0),
+                (100.0, 80.0),
+                10.0,
+                2.0,
+                purple
+            ).expect("Failed to draw rounded rectangle");
+
+            overlay.draw_filled_rounded_rect(
+                (120.0, 200.0),
+                (100.0, 80.0),
+                10.0,
+                cyan
+            ).expect("Failed to draw filled rounded rectangle");
+
+            overlay.draw_gradient_rounded_rect(
+                (230.0, 200.0),
+                (100.0, 80.0),
+                10.0,
+                green,
+                purple,
+                false
+            ).expect("Failed to draw gradient rounded rectangle");
+
+            // Circles and Ellipses
+            overlay.draw_circle(
+                (60.0, 350.0),
+                30.0,
+                2.0,
+                yellow
+            ).expect("Failed to draw circle");
+
+            overlay.draw_filled_circle(
+                (170.0, 350.0),
+                30.0,
+                blue
+            ).expect("Failed to draw filled circle");
+
+            overlay.draw_gradient_circle(
+                (280.0, 350.0),
+                30.0,
+                red,
+                blue,
+                true
+            ).expect("Failed to draw gradient circle (radial)");
+
+            // Ellipses
+            overlay.draw_ellipse(
+                (60.0, 450.0),
+                (40.0, 25.0),
+                2.0,
+                green
+            ).expect("Failed to draw ellipse");
+
+            overlay.draw_filled_ellipse(
+                (170.0, 450.0),
+                (40.0, 25.0),
+                purple
+            ).expect("Failed to draw filled ellipse");
+
+            overlay.draw_gradient_ellipse(
+                (280.0, 450.0),
+                (40.0, 25.0),
+                yellow,
+                cyan,
+                false
+            ).expect("Failed to draw gradient ellipse (linear)");
+
+            // Regular line
+            overlay.draw_line(
+                (400.0, 100.0),
+                (500.0, 150.0),
+                2.0,
+                yellow
+            ).expect("Failed to draw line");
+
+            // Gradient line
+            overlay.draw_gradient_line(
+                (400.0, 200.0),
+                (500.0, 250.0),
+                3.0,
+                red,
+                blue
+            ).expect("Failed to draw gradient line");
+
+            // Dashed line
+            overlay.draw_styled_line(
+                (400.0, 300.0),
+                (500.0, 350.0),
+                2.0,
+                green,
+                D2D1_CAP_STYLE_ROUND,
+                D2D1_CAP_STYLE_ROUND
+            ).expect("Failed to draw styled line");
+
             overlay.end_scene();
         }
 

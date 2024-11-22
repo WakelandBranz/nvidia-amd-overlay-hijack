@@ -9,7 +9,7 @@ use windows::{
     },
 };
 
-// SAFETY: HANDLE is thread-safe as it's just an identifier
+// SAFETY: HWND is thread-safe as it's just an identifier
 // Not sure why this is necessary though.
 unsafe impl Send for Overlay {}
 unsafe impl Sync for Overlay {}
@@ -42,13 +42,17 @@ pub enum OverlayError {
     IDWriteTextFormatFailed,
 
     NoRenderTarget,
-    DrawFailed,
     GetWindowRectFailed,
     GetWriteTextFormatFailed,
+    DrawFailed,
     DrawTextFailed(i32),
+    FailedToGetFontWidth,
     CreateBrushFailed(i32),
     CreateSolidColorBrushFailed,
     ID2D1BrushCastFailed,
-
-    FailedToGetFontWidth,
+    CreateGradientStopCollectionFailed,
+    CreateLinearGradientBrushFailed,
+    CreateRadialGradientBrushFailed,
+    NoD2DFactory,
+    CreateStrokeStyleFailed,
 }
