@@ -4,13 +4,11 @@ A Rust library for hijacking the NVIDIA GeForce Experience overlay for custom re
 
 Most code based off https://github.com/WilgnerFSDev/nvidia-overlay-hijack-rs/
 
-```
-
-Basic example:
+## Basic Example
 ```rust
 use nvidia_overlay_hijack::{Overlay, OverlayError};
 
-fn main() -> Result {
+fn main() -> Result<(), OverlayError> {
     // Create a new overlay with Segoe UI font at 18pt
     let mut overlay = Overlay::new("Segoe UI", 18.0);
     
@@ -51,13 +49,13 @@ overlay.draw_gradient_line(start_point, end_point, stroke_width, color1, color2)
 
 // Styled line (dashed, dotted, etc.)
 overlay.draw_styled_line(
-start_point,
-end_point,
-stroke_width,
-color,
-dash_style,    // D2D1_DASH_STYLE
-start_cap,     // D2D1_CAP_STYLE
-end_cap        // D2D1_CAP_STYLE
+    start_point,
+    end_point,
+    stroke_width,
+    color,
+    dash_style,    // D2D1_DASH_STYLE
+    start_cap,     // D2D1_CAP_STYLE
+    end_cap        // D2D1_CAP_STYLE
 )?;
 
 // Rectangles
@@ -87,9 +85,22 @@ overlay.draw_gradient_ellipse(center, (radius_x, radius_y), color1, color2, is_r
     - For rectangles: `is_vertical` determines gradient direction
     - For circles/ellipses: `is_radial` switches between radial and linear gradients
 
+### Line Styles
+Available dash styles:
+- D2D1_DASH_STYLE_SOLID
+- D2D1_DASH_STYLE_DASH
+- D2D1_DASH_STYLE_DOT
+- D2D1_DASH_STYLE_DASH_DOT
+- D2D1_DASH_STYLE_DASH_DOT_DOT
+
+Available cap styles:
+- D2D1_CAP_STYLE_FLAT
+- D2D1_CAP_STYLE_ROUND
+- D2D1_CAP_STYLE_SQUARE
+
 ### Example with Multiple Shapes
 ```rust
-fn main() -> Result {
+fn main() -> Result<(), OverlayError> {
     let mut overlay = Overlay::new("Segoe UI", 18.0);
     overlay.init()?;
     overlay.startup_d2d()?;
