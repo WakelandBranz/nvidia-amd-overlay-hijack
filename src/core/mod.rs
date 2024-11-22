@@ -54,4 +54,5 @@ pub enum OverlayError {
     CreateRadialGradientBrushFailed,
     NoD2DFactory,
     CreateStrokeStyleFailed,
+    FailedToShowWindow,
 }

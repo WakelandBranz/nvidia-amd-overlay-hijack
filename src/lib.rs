@@ -62,6 +62,9 @@ use windows::{
     Win32::UI::Controls::MARGINS,
 };
 
+const LAYERED_WINDOW_STYLE: i32 = 0x20;
+const WINDOW_ALPHA: u8 = 0xFF;
+
 impl Overlay {
     pub fn new(font: impl ToString, size:f32) -> Self {
         Self {
@@ -80,68 +83,58 @@ impl Overlay {
     // CORE FUNCTIONALITY ----------------
     /// Must be called prior to any rendering.
     pub fn init(&mut self) -> Result<(), OverlayError> {
+        // Find and validate window
         self.window = unsafe {
-            // as_ptr() avoids allocating strings
             FindWindowA(
                 PCSTR::from_raw("CEF-OSC-WIDGET\0".as_ptr()),
                 PCSTR::from_raw("NVIDIA GeForce Overlay\0".as_ptr()),
-            ).expect("Failed to find NVIDIA Overlay window.")
+            ).map_err(|_| OverlayError::WindowNotFound)?
         };
 
-        if self.window.is_invalid() {
-            return Err(OverlayError::WindowNotFound);
-        }
-
+        // Set window style
         let window_info = unsafe { GetWindowLongA(self.window, GWL_EXSTYLE) };
         if window_info == 0 {
             return Err(OverlayError::FailedToGetWindowLong);
         }
 
+        let modified_style = window_info | LAYERED_WINDOW_STYLE;
         let modify_window = unsafe {
-            SetWindowLongPtrA(self.window, GWL_EXSTYLE, (window_info | 0x20) as isize)
+            SetWindowLongPtrA(self.window, GWL_EXSTYLE, modified_style as isize)
         };
         if modify_window == 0 {
             return Err(OverlayError::FailedToSetWindowLong);
         }
 
-        // Set window size equal to window
-        let mut margins = MARGINS {
-            cxLeftWidth: -1,   // Width of the left border
-            cxRightWidth: -1,  // Width of the right border
-            cyTopHeight: -1,   // Height of the top border
-            cyBottomHeight: -1 // Height of the bottom border
+        // Configure window margins
+        let margins = MARGINS {
+            cxLeftWidth: -1,
+            cxRightWidth: -1,
+            cyTopHeight: -1,
+            cyBottomHeight: -1,
         };
 
-        let extend_frame_into_client_area = unsafe { DwmExtendFrameIntoClientArea(self.window, &mut margins) };
-        if extend_frame_into_client_area.is_err() {
-            return Err(OverlayError::FailedToExtendFrame);
-        }
+        // Set window properties
+        unsafe {
+            DwmExtendFrameIntoClientArea(self.window, &margins)
+                .map_err(|_| OverlayError::FailedToExtendFrame)?;
 
-        let set_layered_window_attributes =
-            unsafe { SetLayeredWindowAttributes(self.window, COLORREF(0x000000), 0xFF, LWA_ALPHA) };
-        if set_layered_window_attributes.is_err() {
-            return Err(OverlayError::FailedSetLayeredWindowAttributes);
-        }
+            SetLayeredWindowAttributes(
+                self.window,
+                COLORREF(0x000000),
+                WINDOW_ALPHA,
+                LWA_ALPHA
+            ).map_err(|_| OverlayError::FailedSetLayeredWindowAttributes)?;
 
-        let set_window_pos = unsafe {
-            SetWindowPos(self.window,
-                         HWND_TOPMOST, 0,
-                         0,
-                         0,
-                         0,
-                         SWP_NOMOVE | SWP_NOSIZE
-            )
-        };
-        if set_window_pos.is_err() {
-            return Err(OverlayError::FailedToSetWindowPos);
-        }
+            SetWindowPos(
+                self.window,
+                HWND_TOPMOST,
+                0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE
+            ).map_err(|_| OverlayError::FailedToSetWindowPos)?;
 
-        // This is a windows BOOL so it's not just a !show_window comparison
-        let show_window = unsafe {
-            ShowWindow(self.window, SW_SHOW)
-        };
-        if !show_window.as_bool() {
-            return Err(OverlayError::FailedToSetWindowPos);
+            if !ShowWindow(self.window, SW_SHOW).as_bool() {
+                return Err(OverlayError::FailedToShowWindow); // More specific error
+            }
         }
 
         Ok(())
