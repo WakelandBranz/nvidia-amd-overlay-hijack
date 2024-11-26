@@ -53,11 +53,11 @@ use windows::{
         SetLayeredWindowAttributes,
         LWA_ALPHA, // = LAYERED_WINDOW_ATTRIBUTES_FLAGS(2u32)
         SetWindowPos,
-        ShowWindow,
+        //ShowWindow,
         HWND_TOPMOST,
         SWP_NOMOVE,
         SWP_NOSIZE,
-        SW_SHOW,
+        //SW_SHOW,
     },
     Win32::UI::Controls::MARGINS,
 };
@@ -132,9 +132,9 @@ impl Overlay {
                 SWP_NOMOVE | SWP_NOSIZE
             ).map_err(|_| OverlayError::FailedToSetWindowPos)?;
 
-            if !ShowWindow(self.window, SW_SHOW).as_bool() {
-                return Err(OverlayError::FailedToShowWindow); // More specific error
-            }
+            //if !ShowWindow(self.window, SW_SHOW).as_bool() {
+            //    return Err(OverlayError::FailedToShowWindow); // More specific error
+            //}
         }
 
         Ok(())
