@@ -12,10 +12,10 @@ use windows::Win32::Graphics::Direct2D::{
     Common::{
         D2D1_GRADIENT_STOP,
         D2D_POINT_2F,
-        D2D_RECT_F
+        D2D_RECT_F,
+        D2D1_COLOR_F,
     },
 };
-use windows::Win32::Graphics::Direct2D::Common::D2D1_COLOR_F;
 use crate::helper::*;
 use super::*;
 

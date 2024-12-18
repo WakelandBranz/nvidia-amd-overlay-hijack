@@ -10,56 +10,66 @@ use crate::{
 use std::ffi::OsStr;
 use std::os::windows::prelude::OsStrExt;
 use windows::{
-    core::{PCSTR,
-           PCWSTR,
-           w, // A literal UTF-16 wide string with a trailing null terminator.
+    core::{
+        PCSTR,
+        PCWSTR,
+        w, // A literal UTF-16 wide string with a trailing null terminator.
     },
-    Win32::Graphics::{
-        Direct2D::{
-            D2D1CreateFactory,
-            ID2D1Factory,
-            D2D1_FACTORY_TYPE_SINGLE_THREADED,
-            D2D1_FEATURE_LEVEL_DEFAULT,
-            D2D1_HWND_RENDER_TARGET_PROPERTIES,
-            D2D1_PRESENT_OPTIONS_NONE,
-            D2D1_RENDER_TARGET_PROPERTIES,
-            D2D1_RENDER_TARGET_TYPE_DEFAULT,
-            D2D1_RENDER_TARGET_USAGE_NONE,
-            Common::{
-                D2D_SIZE_U,
-                D2D1_ALPHA_MODE_PREMULTIPLIED,
-                D2D1_PIXEL_FORMAT,
+    Win32::{
+        Foundation::{
+            RECT,
+            COLORREF,
+            HWND,
+        },
+        Graphics::{
+            Dxgi::Common::DXGI_FORMAT_UNKNOWN,
+            Dwm::DwmExtendFrameIntoClientArea,
+            Direct2D::{
+                D2D1CreateFactory,
+                ID2D1Factory,
+                D2D1_FACTORY_TYPE_SINGLE_THREADED,
+                D2D1_FEATURE_LEVEL_DEFAULT,
+                D2D1_HWND_RENDER_TARGET_PROPERTIES,
+                D2D1_PRESENT_OPTIONS_NONE,
+                D2D1_RENDER_TARGET_PROPERTIES,
+                D2D1_RENDER_TARGET_TYPE_DEFAULT,
+                D2D1_RENDER_TARGET_USAGE_NONE,
+                D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE,
+                Common::{
+                    D2D_SIZE_U,
+                    D2D1_ALPHA_MODE_PREMULTIPLIED,
+                    D2D1_PIXEL_FORMAT,
+                },
+            },
+            DirectWrite::{
+                DWriteCreateFactory,
+                IDWriteFactory,
+                IDWriteTextFormat,
+                DWRITE_FACTORY_TYPE_SHARED,
+                DWRITE_FONT_STRETCH_NORMAL,
+                DWRITE_FONT_STYLE_NORMAL,
+                DWRITE_FONT_WEIGHT_REGULAR,
             },
         },
-        DirectWrite::{
-            DWriteCreateFactory,
-            IDWriteFactory,
-            IDWriteTextFormat,
-            DWRITE_FACTORY_TYPE_SHARED,
-            DWRITE_FONT_STRETCH_NORMAL,
-            DWRITE_FONT_STYLE_NORMAL,
-            DWRITE_FONT_WEIGHT_REGULAR,
-        },
-        Dxgi::Common::DXGI_FORMAT_UNKNOWN,
-        Dwm::DwmExtendFrameIntoClientArea,
+        UI::{
+            WindowsAndMessaging::{
+                FindWindowA,
+                GetClientRect,
+                GetWindowLongA,
+                SetWindowLongPtrA,
+                GWL_EXSTYLE, // = WINDOW_LONG_PTR_INDEX(-20)
+                SetLayeredWindowAttributes,
+                LWA_ALPHA, // = LAYERED_WINDOW_ATTRIBUTES_FLAGS(2u32)
+                SetWindowPos,
+                //ShowWindow,
+                HWND_TOPMOST,
+                SWP_NOMOVE,
+                SWP_NOSIZE,
+                //SW_SHOW,
+            },
+            Controls::MARGINS,
+        }
     },
-    Win32::Foundation::{RECT, COLORREF, HWND},
-    Win32::UI::WindowsAndMessaging::{
-        FindWindowA,
-        GetClientRect,
-        GetWindowLongA,
-        SetWindowLongPtrA,
-        GWL_EXSTYLE, // = WINDOW_LONG_PTR_INDEX(-20)
-        SetLayeredWindowAttributes,
-        LWA_ALPHA, // = LAYERED_WINDOW_ATTRIBUTES_FLAGS(2u32)
-        SetWindowPos,
-        //ShowWindow,
-        HWND_TOPMOST,
-        SWP_NOMOVE,
-        SWP_NOSIZE,
-        //SW_SHOW,
-    },
-    Win32::UI::Controls::MARGINS,
 };
 
 const LAYERED_WINDOW_STYLE: i32 = 0x20;
@@ -131,10 +141,6 @@ impl Overlay {
                 0, 0, 0, 0,
                 SWP_NOMOVE | SWP_NOSIZE
             ).map_err(|_| OverlayError::FailedToSetWindowPos)?;
-
-            //if !ShowWindow(self.window, SW_SHOW).as_bool() {
-            //    return Err(OverlayError::FailedToShowWindow); // More specific error
-            //}
         }
 
         Ok(())
@@ -204,7 +210,11 @@ impl Overlay {
 
         let target = unsafe {
             match d2d_factory.CreateHwndRenderTarget(&render_target_properties, &hwnd_target_properties) {
-                Ok(target) => target,
+                Ok(target) => {
+                    target.SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+
+                    target
+                },
                 Err(_) => return Err(OverlayError::StartupD2DFailed),
             }
         };
@@ -278,7 +288,7 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut overlay = Overlay::new("Comic Sans MS", 18.0);
+        let mut overlay = Overlay::new("Tahoma", 18.0);
 
         // Initialize nvidia_overlay
         match overlay.init() {
