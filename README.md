@@ -1,6 +1,6 @@
-# NVIDIA Overlay Hijack
+# Overlay Hijack
 
-A Rust library for hijacking the NVIDIA GeForce Experience overlay for custom rendering.
+A Rust library for hijacking the NVIDIA GeForce Experience and AMD Radeon overlays for custom rendering.
 
 Showcase: https://youtu.be/MKifNl3XCHQ
 

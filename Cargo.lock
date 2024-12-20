@@ -3,9 +3,10 @@
 version = 3
 
 [[package]]
-name = "nvidia_overlay"
+name = "nvidia_amd_overlay"
 version = "0.1.0"
 dependencies = [
+ "str_crypter",
  "windows",
  "wio",
 ]
@@ -27,6 +28,12 @@ checksum = "b5b9d34b8991d19d98081b46eacdd8eb58c6f2b201139f7c5f643cc155a633af"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "str_crypter"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62c2065bd22d7902b59eb04ec3f82a0de8f20f4b0e908d49745946ab8e2c58b3"
 
 [[package]]
 name = "syn"

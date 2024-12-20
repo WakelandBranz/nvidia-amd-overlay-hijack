@@ -6,12 +6,13 @@ pub mod helper;
 use crate::{
     core::{Overlay, OverlayError},
 };
-
-use std::ffi::OsStr;
-use std::os::windows::prelude::OsStrExt;
+use std::{
+    ffi::OsStr,
+    os::windows::prelude::OsStrExt,
+};
+use std::collections::HashMap;
 use windows::{
     core::{
-        PCSTR,
         PCWSTR,
         w, // A literal UTF-16 wide string with a trailing null terminator.
     },
@@ -53,7 +54,6 @@ use windows::{
         },
         UI::{
             WindowsAndMessaging::{
-                FindWindowA,
                 GetClientRect,
                 GetWindowLongA,
                 SetWindowLongPtrA,
@@ -71,9 +71,13 @@ use windows::{
         }
     },
 };
+use windows::Win32::UI::WindowsAndMessaging::GetWindowRect;
+use crate::helper::{find_target_window, OverlayHelper};
 
 const LAYERED_WINDOW_STYLE: i32 = 0x20;
 const WINDOW_ALPHA: u8 = 0xFF;
+
+
 
 impl Overlay {
     pub fn new(font: impl ToString, size:f32) -> Self {
@@ -87,6 +91,14 @@ impl Overlay {
             font: font.to_string(),
             font_size: size,
             font_width: None, // This will be useful for calculating the width of a rendered string
+
+            // Useful for caching
+            solid_color_brush: None,
+            linear_gradient_brush: None,
+            radial_gradient_brush: None,
+            window_size: None,
+            text_layout_cache: HashMap::new(),
+            cache_frame_count: 0,
         }
     }
 
@@ -94,12 +106,7 @@ impl Overlay {
     /// Must be called prior to any rendering.
     pub fn init(&mut self) -> Result<(), OverlayError> {
         // Find and validate window
-        self.window = unsafe {
-            FindWindowA(
-                PCSTR::from_raw("CEF-OSC-WIDGET\0".as_ptr()),
-                PCSTR::from_raw("NVIDIA GeForce Overlay\0".as_ptr()),
-            ).map_err(|_| OverlayError::WindowNotFound)?
-        };
+        self.window = find_target_window()?;
 
         // Set window style
         let window_info = unsafe { GetWindowLongA(self.window, GWL_EXSTYLE) };
@@ -223,11 +230,41 @@ impl Overlay {
             format.GetFontStretch().0
         };
 
+        // Set up all necessary D2D objects
         self.d2d_factory = Some(d2d_factory);
         self.write_factory = Some(write_factory);
         self.format = Some(format);
         self.target = Some(target);
+
+        let solid_color_brush = self.create_solid_color_brush((0u8, 0u8, 0u8, 0u8))
+            .map_err(|_| OverlayError::CreateSolidColorBrushFailed)?;
+
+        let linear_gradient_brush = self.create_linear_gradient_brush(
+            (0f32, 0f32),
+            (0f32, 0f32),
+            (0u8, 0u8, 0u8, 0u8),
+            (0u8, 0u8, 0u8, 0u8),
+        ).map_err(|_| OverlayError::CreateLinearGradientBrushFailed)?;
+
+        let radial_gradient_brush = self.create_radial_gradient_brush(
+            (0f32, 0f32),
+            (0f32, 0f32),
+            (0u8, 0u8, 0u8, 0u8),
+            (0u8, 0u8, 0u8, 0u8),
+        ).map_err(|_| OverlayError::CreateRadialGradientBrushFailed)?;
+
+        let mut window_size = RECT::default();
+        unsafe {
+            GetWindowRect(self.window, &mut window_size)
+                .expect("GetWindowRect failed in overlay::helper::create_text_layout");
+        }
+
+        // Caching fields
         self.font_width = Some(font_width);
+        self.solid_color_brush = Some(solid_color_brush);
+        self.linear_gradient_brush = Some(linear_gradient_brush);
+        self.radial_gradient_brush = Some(radial_gradient_brush);
+        self.window_size = Some(window_size);
 
         Ok(())
     }
@@ -290,13 +327,13 @@ mod tests {
     fn it_works() {
         let mut overlay = Overlay::new("Tahoma", 18.0);
 
-        // Initialize nvidia_overlay
+        // Initialize overlay
         match overlay.init() {
             Ok(_) => println!("Successfully initialized overlay"),
             Err(_) => println!("Failed to initialize overlay")
         };
 
-        // Startup nvidia_overlay rendering
+        // Startup overlay rendering
          match overlay.startup_d2d() {
              Ok(_) => println!("Succeeded in startup_d2d"),
              Err(_) => println!("Failed startup_d2d"),
@@ -311,7 +348,7 @@ mod tests {
         let purple = (255, 0, 255, 255);
         let cyan = (0, 255, 255, 255);
 
-        // Show the nvidia_overlay for 10 seconds
+        // Show the overlay for 10 seconds
         let start = Instant::now();
         while start.elapsed() < Duration::from_secs(10) {
             overlay.begin_scene();
@@ -321,7 +358,7 @@ mod tests {
             overlay.draw_text(
                 (10.0, 30.0),
                 "https://github.com/WakelandBranz/nvidia-overlay-hijack\nShape Showcase".to_string(),
-                red,
+                (255, 255, 255, 255),
             ).expect("Failed to draw text");
 
             // Basic shapes

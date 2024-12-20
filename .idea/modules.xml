@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/nvidia_overlay.iml" filepath="$PROJECT_DIR$/.idea/nvidia_overlay.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/nvidia_amd_overlay.iml" filepath="$PROJECT_DIR$/.idea/nvidia_amd_overlay.iml" />
     </modules>
   </component>
 </project>

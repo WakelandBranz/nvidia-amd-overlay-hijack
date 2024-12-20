@@ -1,19 +1,14 @@
 use windows::Win32::Graphics::Direct2D::{
     D2D1_DRAW_TEXT_OPTIONS_NONE,
     D2D1_ELLIPSE,
-    D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES,
-    D2D1_GAMMA_2_2, D2D1_EXTEND_MODE_CLAMP,
     D2D1_ROUNDED_RECT,
-    D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES,
     D2D1_CAP_STYLE,
     D2D1_STROKE_STYLE_PROPERTIES,
     D2D1_CAP_STYLE_FLAT,
     D2D1_LINE_JOIN,
     Common::{
-        D2D1_GRADIENT_STOP,
         D2D_POINT_2F,
         D2D_RECT_F,
-        D2D1_COLOR_F,
     },
 };
 use crate::helper::*;
@@ -28,10 +23,17 @@ impl Overlay {
         text: String,
         color: (u8, u8, u8, u8)
     ) -> Result <(), OverlayError> {
-        let text_layout = self.create_text_layout(&text).expect("Failed to get text_layout");
+        self.update_solid_color_brush(color)?;
 
-        self.draw_element(
-            color, // Default to white if no color specified
+        // Get/update text layout from cache
+        let text_layout = self.update_text_layout(text.as_str())?;
+
+        // Get reference to the updated/cached brush
+        let brush = self.solid_color_brush.as_ref()
+            .ok_or(OverlayError::CreateSolidColorBrushFailed)?;
+
+        self.draw_with_brush(
+            brush, // Default to white if no color specified
             |target, brush| unsafe {
                 target.DrawTextLayout(
                     D2D_POINT_2F { x, y },
@@ -43,6 +45,23 @@ impl Overlay {
         ).map_err(|_| OverlayError::DrawTextFailed(-1)) // Usually I'd use a match statement but this is already super nested.
     }
 
+    pub fn draw_outlined_text(
+        &mut self,
+        (x, y): (f32, f32),
+        text: String,
+        color: (u8, u8, u8, u8)
+    ) -> Result<(), OverlayError> {
+        // Outline
+        self.draw_text((x - 1.0, y), text.clone(), (0, 0, 0, 255))?;
+        self.draw_text((x + 1.0, y), text.clone(), (0, 0, 0, 255))?;
+        self.draw_text((x, y - 1.0), text.clone(), (0, 0, 0, 255))?;
+        self.draw_text((x, y + 1.0), text.clone(), (0, 0, 0, 255))?;
+        // Main text
+        self.draw_text((x, y), text, color)?;
+
+        Ok(())
+    }
+
     // LINES ----------------------------------
 
     pub fn draw_line(
@@ -52,8 +71,13 @@ impl Overlay {
         stroke_width: f32,
         color: (u8, u8, u8, u8),
     ) -> Result<(), OverlayError> {
-        self.draw_element(
-            color,
+        self.update_solid_color_brush(color)?;
+
+        let brush = self.solid_color_brush.as_ref()
+            .ok_or(OverlayError::CreateSolidColorBrushFailed)?;
+
+        self.draw_with_brush(
+            brush,
             |target, brush| unsafe {
                 target.DrawLine(
                     D2D_POINT_2F { x: start.0, y: start.1 },
@@ -74,64 +98,31 @@ impl Overlay {
         color1: (u8, u8, u8, u8),
         color2: (u8, u8, u8, u8),
     ) -> Result<(), OverlayError> {
-        // Convert colors to D2D1_COLOR_F format
-        let start_color = D2D1_COLOR_F {
-            r: color1.0 as f32 / 255.0,
-            g: color1.1 as f32 / 255.0,
-            b: color1.2 as f32 / 255.0,
-            a: color1.3 as f32 / 255.0,
-        };
-        let end_color = D2D1_COLOR_F {
-            r: color2.0 as f32 / 255.0,
-            g: color2.1 as f32 / 255.0,
-            b: color2.2 as f32 / 255.0,
-            a: color2.3 as f32 / 255.0,
-        };
+        // Update cached brush if necessary
+        self.update_linear_gradient_brush(
+            start,
+            end,
+            color1,
+            color2,
+        )?;
 
-        let gradient_stops = [
-            D2D1_GRADIENT_STOP {
-                position: 0.0,
-                color: start_color,
-            },
-            D2D1_GRADIENT_STOP {
-                position: 1.0,
-                color: end_color,
-            },
-        ];
+        // Get reference to the updated/cached brush
+        let brush = self.linear_gradient_brush.as_ref()
+            .ok_or(OverlayError::CreateLinearGradientBrushFailed)?;
 
-        unsafe {
-            let render_target = self.target.as_ref()
-                .ok_or(OverlayError::NoRenderTarget)?;
-
-            let gradient_stop_collection = render_target
-                .CreateGradientStopCollection(
-                    &gradient_stops,
-                    D2D1_GAMMA_2_2,
-                    D2D1_EXTEND_MODE_CLAMP,
-                )
-                .map_err(|_| OverlayError::CreateGradientStopCollectionFailed)?;
-
-            let gradient_brush = render_target
-                .CreateLinearGradientBrush(
-                    &D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES {
-                        startPoint: D2D_POINT_2F { x: start.0, y: start.1 },
-                        endPoint: D2D_POINT_2F { x: end.0, y: end.1 },
-                    },
+        // Use draw_with_brush for the actual rendering
+        self.draw_with_brush(
+            brush,
+            |target, brush| unsafe {
+                target.DrawLine(
+                    D2D_POINT_2F { x: start.0, y: start.1 },
+                    D2D_POINT_2F { x: end.0, y: end.1 },
+                    brush,
+                    stroke_width,
                     None,
-                    &gradient_stop_collection,
                 )
-                .map_err(|_| OverlayError::CreateLinearGradientBrushFailed)?;
-
-            render_target.DrawLine(
-                D2D_POINT_2F { x: start.0, y: start.1 },
-                D2D_POINT_2F { x: end.0, y: end.1 },
-                &gradient_brush,
-                stroke_width,
-                None,
-            );
-
-            Ok(())
-        }
+            }
+        ).map_err(|_| OverlayError::DrawFailed)
     }
 
     pub fn draw_styled_line(
@@ -143,6 +134,11 @@ impl Overlay {
         start_cap: D2D1_CAP_STYLE,
         end_cap: D2D1_CAP_STYLE,
     ) -> Result<(), OverlayError> {
+        self.update_solid_color_brush(color)?;
+
+        let brush = self.solid_color_brush.as_ref()
+            .ok_or(OverlayError::CreateSolidColorBrushFailed)?;
+
         unsafe {
             let d2d_factory = self.d2d_factory.as_ref()
                 .ok_or(OverlayError::NoD2DFactory)?;
@@ -160,8 +156,8 @@ impl Overlay {
                 None,
             ).map_err(|_| OverlayError::CreateStrokeStyleFailed)?;
 
-            self.draw_element(
-                color,
+            self.draw_with_brush(
+                brush,
                 |target, brush|
                     target.DrawLine(
                         D2D_POINT_2F { x: start.0, y: start.1 },
@@ -183,6 +179,8 @@ impl Overlay {
         stroke_width: f32,
         color: (u8, u8, u8, u8)
     ) -> Result <(), OverlayError> {
+        self.update_solid_color_brush(color)?;
+
         let rect = D2D_RECT_F {
             left: x,
             top: y,
@@ -190,8 +188,11 @@ impl Overlay {
             bottom: y + height,
         };
 
-        self.draw_element(
-            color, // Default to white if no color specified
+        let brush = self.solid_color_brush.as_ref()
+            .ok_or(OverlayError::CreateSolidColorBrushFailed)?;
+
+        self.draw_with_brush(
+            brush, // Default to white if no color specified
             |target, brush| unsafe {
                 target.DrawRectangle(&rect, brush, stroke_width, None)
             }
@@ -204,6 +205,8 @@ impl Overlay {
         (width, height): (f32, f32),
         color: (u8, u8, u8, u8)
     ) -> Result <(), OverlayError> {
+        self.update_solid_color_brush(color)?;
+
         let rect = D2D_RECT_F {
             left: x,
             top: y,
@@ -211,8 +214,11 @@ impl Overlay {
             bottom: y + height,
         };
 
-        self.draw_element(
-            color, // Default to white if no color specified
+        let brush = self.solid_color_brush.as_ref()
+            .ok_or(OverlayError::CreateSolidColorBrushFailed)?;
+
+        self.draw_with_brush(
+            brush, // Default to white if no color specified
             |target, brush| unsafe {
                 target.FillRectangle(&rect, brush)
             }
@@ -227,6 +233,25 @@ impl Overlay {
         color2: (u8, u8, u8, u8),
         is_vertical: bool,
     ) -> Result<(), OverlayError> {
+        let (start, end) = if is_vertical {
+            (
+                (x, y),
+                (x, y + height),
+            )
+        } else {
+            (
+                (x, y),
+                (x + width, y),
+            )
+        };
+
+        self.update_linear_gradient_brush(
+            start,
+            end,
+            color1,
+            color2,
+        )?;
+
         let rect = D2D_RECT_F {
             left: x,
             top: y,
@@ -234,80 +259,18 @@ impl Overlay {
             bottom: y + height,
         };
 
-        // Convert colors to D2D1_COLOR_F format (0.0 to 1.0 range)
-        let start_color = D2D1_COLOR_F {
-            r: color1.0 as f32 / 255.0,
-            g: color1.1 as f32 / 255.0,
-            b: color1.2 as f32 / 255.0,
-            a: color1.3 as f32 / 255.0,
-        };
-        let end_color = D2D1_COLOR_F {
-            r: color2.0 as f32 / 255.0,
-            g: color2.1 as f32 / 255.0,
-            b: color2.2 as f32 / 255.0,
-            a: color2.3 as f32 / 255.0,
-        };
+        let brush = self.linear_gradient_brush.as_ref()
+            .ok_or(OverlayError::CreateLinearGradientBrushFailed)?;
 
-        // Define gradient stops
-        let gradient_stops = [
-            D2D1_GRADIENT_STOP {
-                position: 0.0,
-                color: start_color,
-            },
-            D2D1_GRADIENT_STOP {
-                position: 1.0,
-                color: end_color,
-            },
-        ];
-
-        // Define start and end points for the gradient
-        let (start_point, end_point) = if is_vertical {
-            (
-                D2D_POINT_2F { x, y },
-                D2D_POINT_2F { x, y: y + height },
-            )
-        }
-        else {
-            (
-                D2D_POINT_2F { x, y },
-                D2D_POINT_2F { x: x + width, y },
-            )
-        };
-
-        unsafe {
-            let render_target = self.target.as_ref()
-                .ok_or(OverlayError::NoRenderTarget)?;
-
-            // Create gradient stop collection
-            let gradient_stop_collection = render_target
-                .CreateGradientStopCollection(
-                    &gradient_stops,
-                    D2D1_GAMMA_2_2,
-                    D2D1_EXTEND_MODE_CLAMP,
-                )
-                .map_err(|_| OverlayError::CreateGradientStopCollectionFailed)?;
-
-            // Create linear gradient brush
-            let gradient_brush = render_target
-                .CreateLinearGradientBrush(
-                    &D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES {
-                        startPoint: start_point,
-                        endPoint: end_point,
-                    },
-                    None,
-                    &gradient_stop_collection,
-                )
-                .map_err(|_| OverlayError::CreateLinearGradientBrushFailed)?;
-
-            // Fill rectangle with gradient
-            render_target.FillRectangle(&rect, &gradient_brush);
-
-            Ok(())
-        }
+        self.draw_with_brush(
+            brush,
+            |target, brush| unsafe {
+                target.FillRectangle(&rect, brush)
+            }
+        ).map_err(|_| OverlayError::DrawFailed)
     }
 
     // ROUNDED RECTANGLES ----------------------
-
     pub fn draw_rounded_rect(
         &mut self,
         (x, y): (f32, f32),
@@ -316,6 +279,8 @@ impl Overlay {
         stroke_width: f32,
         color: (u8, u8, u8, u8)
     ) -> Result<(), OverlayError> {
+        self.update_solid_color_brush(color)?;
+
         let rect = D2D_RECT_F {
             left: x,
             top: y,
@@ -329,8 +294,11 @@ impl Overlay {
             radiusY: radius,
         };
 
-        self.draw_element(
-            color,
+        let brush = self.solid_color_brush.as_ref()
+            .ok_or(OverlayError::CreateSolidColorBrushFailed)?;
+
+        self.draw_with_brush(
+            brush,
             |target, brush| unsafe {
                 target.DrawRoundedRectangle(&rounded_rect, brush, stroke_width, None)
             }
@@ -344,6 +312,8 @@ impl Overlay {
         radius: f32,
         color: (u8, u8, u8, u8)
     ) -> Result<(), OverlayError> {
+        self.update_solid_color_brush(color)?;
+
         let rect = D2D_RECT_F {
             left: x,
             top: y,
@@ -357,8 +327,11 @@ impl Overlay {
             radiusY: radius,
         };
 
-        self.draw_element(
-            color,
+        let brush = self.solid_color_brush.as_ref()
+            .ok_or(OverlayError::CreateSolidColorBrushFailed)?;
+
+        self.draw_with_brush(
+            brush,
             |target, brush| unsafe {
                 target.FillRoundedRectangle(&rounded_rect, brush)
             }
@@ -374,6 +347,25 @@ impl Overlay {
         color2: (u8, u8, u8, u8),
         is_vertical: bool,
     ) -> Result<(), OverlayError> {
+        let (start_point, end_point) = if is_vertical {
+            (
+                (x, y),
+                (x, y + height),
+            )
+        } else {
+            (
+                (x, y),
+                (x + width, y),
+            )
+        };
+
+        self.update_linear_gradient_brush(
+            start_point,
+            end_point,
+            color1,
+            color2,
+        )?;
+
         let rect = D2D_RECT_F {
             left: x,
             top: y,
@@ -387,130 +379,27 @@ impl Overlay {
             radiusY: radius,
         };
 
-        // Convert colors to D2D1_COLOR_F format (0.0 to 1.0 range)
-        let start_color = D2D1_COLOR_F {
-            r: color1.0 as f32 / 255.0,
-            g: color1.1 as f32 / 255.0,
-            b: color1.2 as f32 / 255.0,
-            a: color1.3 as f32 / 255.0,
-        };
-        let end_color = D2D1_COLOR_F {
-            r: color2.0 as f32 / 255.0,
-            g: color2.1 as f32 / 255.0,
-            b: color2.2 as f32 / 255.0,
-            a: color2.3 as f32 / 255.0,
-        };
+        let brush = self.linear_gradient_brush.as_ref()
+            .ok_or(OverlayError::CreateLinearGradientBrushFailed)?;
 
-        let gradient_stops = [
-            D2D1_GRADIENT_STOP {
-                position: 0.0,
-                color: start_color,
-            },
-            D2D1_GRADIENT_STOP {
-                position: 1.0,
-                color: end_color,
-            },
-        ];
-
-        let (start_point, end_point) = if is_vertical {
-            (
-                D2D_POINT_2F { x, y },
-                D2D_POINT_2F { x, y: y + height },
-            )
-        }
-        else {
-            (
-                D2D_POINT_2F { x, y },
-                D2D_POINT_2F { x: x + width, y },
-            )
-        };
-
-        unsafe {
-            let render_target = self.target.as_ref()
-                .ok_or(OverlayError::NoRenderTarget)?;
-
-            let gradient_stop_collection = render_target
-                .CreateGradientStopCollection(
-                    &gradient_stops,
-                    D2D1_GAMMA_2_2,
-                    D2D1_EXTEND_MODE_CLAMP,
-                )
-                .map_err(|_| OverlayError::CreateGradientStopCollectionFailed)?;
-
-            let gradient_brush = render_target
-                .CreateLinearGradientBrush(
-                    &D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES {
-                        startPoint: start_point,
-                        endPoint: end_point,
-                    },
-                    None,
-                    &gradient_stop_collection,
-                )
-                .map_err(|_| OverlayError::CreateLinearGradientBrushFailed)?;
-
-            render_target.FillRoundedRectangle(&rounded_rect, &gradient_brush);
-
-            Ok(())
-        }
+        self.draw_with_brush(
+            brush,
+            |target, brush| unsafe {
+                target.FillRoundedRectangle(&rounded_rect, brush)
+            }
+        ).map_err(|_| OverlayError::DrawFailed)
     }
 
     // CIRCLES ---------------------------------
-
     pub fn draw_circle(
-        &mut self,
-        center: (f32, f32),  // Center point instead of top-left
-        radius: f32,         // Single radius value for circle
-        stroke_width: f32,
-        color: (u8, u8, u8, u8)
-    ) -> Result<(), OverlayError> {
-        let ellipse = D2D1_ELLIPSE {
-            point: D2D_POINT_2F {
-                x: center.0,
-                y: center.1,
-            },
-            radiusX: radius,
-            radiusY: radius,  // Same radius for both axes makes it a circle
-        };
-
-        self.draw_element(
-            color,
-            |target, brush| unsafe {
-                target.DrawEllipse(&ellipse, brush, stroke_width, None)
-            }
-        ).map_err(|_| OverlayError::DrawTextFailed(-1))
-    }
-
-    pub fn draw_filled_circle(
-        &mut self,
-        center: (f32, f32),  // Center point instead of top-left
-        radius: f32,         // Single radius value for circle
-        color: (u8, u8, u8, u8)
-    ) -> Result<(), OverlayError> {
-        let ellipse = D2D1_ELLIPSE {
-            point: D2D_POINT_2F {
-                x: center.0,
-                y: center.1,
-            },
-            radiusX: radius,
-            radiusY: radius,  // Same radius for both axes makes it a circle
-        };
-
-        self.draw_element(
-            color,
-            |target, brush| unsafe {
-                target.FillEllipse(&ellipse, brush)
-            }
-        ).map_err(|_| OverlayError::DrawTextFailed(-1))
-    }
-
-    pub fn draw_gradient_circle(
         &mut self,
         center: (f32, f32),
         radius: f32,
-        color1: (u8, u8, u8, u8),
-        color2: (u8, u8, u8, u8),
-        is_radial: bool, // true for radial gradient, false for linear
+        stroke_width: f32,
+        color: (u8, u8, u8, u8)
     ) -> Result<(), OverlayError> {
+        self.update_solid_color_brush(color)?;
+
         let ellipse = D2D1_ELLIPSE {
             point: D2D_POINT_2F {
                 x: center.0,
@@ -520,94 +409,109 @@ impl Overlay {
             radiusY: radius,
         };
 
-        // Convert colors to D2D1_COLOR_F format
-        let start_color = D2D1_COLOR_F {
-            r: color1.0 as f32 / 255.0,
-            g: color1.1 as f32 / 255.0,
-            b: color1.2 as f32 / 255.0,
-            a: color1.3 as f32 / 255.0,
-        };
-        let end_color = D2D1_COLOR_F {
-            r: color2.0 as f32 / 255.0,
-            g: color2.1 as f32 / 255.0,
-            b: color2.2 as f32 / 255.0,
-            a: color2.3 as f32 / 255.0,
-        };
+        let brush = self.solid_color_brush.as_ref()
+            .ok_or(OverlayError::CreateSolidColorBrushFailed)?;
 
-        let gradient_stops = [
-            D2D1_GRADIENT_STOP {
-                position: 0.0,
-                color: start_color,
-            },
-            D2D1_GRADIENT_STOP {
-                position: 1.0,
-                color: end_color,
-            },
-        ];
-
-        unsafe {
-            let render_target = self.target.as_ref()
-                .ok_or(OverlayError::NoRenderTarget)?;
-
-            let gradient_stop_collection = render_target
-                .CreateGradientStopCollection(
-                    &gradient_stops,
-                    D2D1_GAMMA_2_2,
-                    D2D1_EXTEND_MODE_CLAMP,
-                )
-                .map_err(|_| OverlayError::CreateGradientStopCollectionFailed)?;
-
-            if is_radial {
-                // Create radial gradient brush
-                let radial_brush = render_target
-                    .CreateRadialGradientBrush(
-                        &D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES {
-                            center: D2D_POINT_2F {
-                                x: center.0,
-                                y: center.1,
-                            },
-                            gradientOriginOffset: D2D_POINT_2F {
-                                x: 0.0,
-                                y: 0.0,
-                            },
-                            radiusX: radius,
-                            radiusY: radius,
-                        },
-                        None,
-                        &gradient_stop_collection,
-                    )
-                    .map_err(|_| OverlayError::CreateRadialGradientBrushFailed)?;
-
-                render_target.FillEllipse(&ellipse, &radial_brush);
+        self.draw_with_brush(
+            brush,
+            |target, brush| unsafe {
+                target.DrawEllipse(&ellipse, brush, stroke_width, None)
             }
-            else {
-                // Create linear gradient brush
-                let linear_brush = render_target
-                    .CreateLinearGradientBrush(
-                        &D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES {
-                            startPoint: D2D_POINT_2F {
-                                x: center.0 - radius,
-                                y: center.1,
-                            },
-                            endPoint: D2D_POINT_2F {
-                                x: center.0 + radius,
-                                y: center.1,
-                            },
-                        },
-                        None,
-                        &gradient_stop_collection,
-                    )
-                    .map_err(|_| OverlayError::CreateLinearGradientBrushFailed)?;
-
-                render_target.FillEllipse(&ellipse, &linear_brush);
-            }
-
-            Ok(())
-        }
+        ).map_err(|_| OverlayError::DrawFailed)
     }
 
-    // ELLIPSES --------------------------------
+    pub fn draw_filled_circle(
+        &mut self,
+        center: (f32, f32),
+        radius: f32,
+        color: (u8, u8, u8, u8)
+    ) -> Result<(), OverlayError> {
+        self.update_solid_color_brush(color)?;
 
+        let ellipse = D2D1_ELLIPSE {
+            point: D2D_POINT_2F {
+                x: center.0,
+                y: center.1,
+            },
+            radiusX: radius,
+            radiusY: radius,
+        };
+
+        let brush = self.solid_color_brush.as_ref()
+            .ok_or(OverlayError::CreateSolidColorBrushFailed)?;
+
+        self.draw_with_brush(
+            brush,
+            |target, brush| unsafe {
+                target.FillEllipse(&ellipse, brush)
+            }
+        ).map_err(|_| OverlayError::DrawFailed)
+    }
+
+    pub fn draw_gradient_circle(
+        &mut self,
+        center: (f32, f32),
+        radius: f32,
+        color1: (u8, u8, u8, u8),
+        color2: (u8, u8, u8, u8),
+        is_radial: bool,
+    ) -> Result<(), OverlayError> {
+        if is_radial {
+            self.update_radial_gradient_brush(
+                center,
+                (radius, radius),
+                color1,
+                color2,
+            )?;
+
+            let brush = self.radial_gradient_brush.as_ref()
+                .ok_or(OverlayError::CreateRadialGradientBrushFailed)?;
+
+            let ellipse = D2D1_ELLIPSE {
+                point: D2D_POINT_2F {
+                    x: center.0,
+                    y: center.1,
+                },
+                radiusX: radius,
+                radiusY: radius,
+            };
+
+            self.draw_with_brush(
+                brush,
+                |target, brush| unsafe {
+                    target.FillEllipse(&ellipse, brush)
+                }
+            )
+        } else {
+            self.update_linear_gradient_brush(
+                (center.0 - radius, center.1),
+                (center.0 + radius, center.1),
+                color1,
+                color2,
+            )?;
+
+            let brush = self.linear_gradient_brush.as_ref()
+                .ok_or(OverlayError::CreateLinearGradientBrushFailed)?;
+
+            let ellipse = D2D1_ELLIPSE {
+                point: D2D_POINT_2F {
+                    x: center.0,
+                    y: center.1,
+                },
+                radiusX: radius,
+                radiusY: radius,
+            };
+
+            self.draw_with_brush(
+                brush,
+                |target, brush| unsafe {
+                    target.FillEllipse(&ellipse, brush)
+                }
+            )
+        }.map_err(|_| OverlayError::DrawFailed)
+    }
+
+    // ELLIPSES -------------------------------
     pub fn draw_ellipse(
         &mut self,
         center: (f32, f32),
@@ -615,6 +519,8 @@ impl Overlay {
         stroke_width: f32,
         color: (u8, u8, u8, u8)
     ) -> Result<(), OverlayError> {
+        self.update_solid_color_brush(color)?;
+
         let ellipse = D2D1_ELLIPSE {
             point: D2D_POINT_2F {
                 x: center.0,
@@ -624,8 +530,11 @@ impl Overlay {
             radiusY: radius_y,
         };
 
-        self.draw_element(
-            color,
+        let brush = self.solid_color_brush.as_ref()
+            .ok_or(OverlayError::CreateSolidColorBrushFailed)?;
+
+        self.draw_with_brush(
+            brush,
             |target, brush| unsafe {
                 target.DrawEllipse(&ellipse, brush, stroke_width, None)
             }
@@ -638,6 +547,8 @@ impl Overlay {
         (radius_x, radius_y): (f32, f32),
         color: (u8, u8, u8, u8)
     ) -> Result<(), OverlayError> {
+        self.update_solid_color_brush(color)?;
+
         let ellipse = D2D1_ELLIPSE {
             point: D2D_POINT_2F {
                 x: center.0,
@@ -647,8 +558,11 @@ impl Overlay {
             radiusY: radius_y,
         };
 
-        self.draw_element(
-            color,
+        let brush = self.solid_color_brush.as_ref()
+            .ok_or(OverlayError::CreateSolidColorBrushFailed)?;
+
+        self.draw_with_brush(
+            brush,
             |target, brush| unsafe {
                 target.FillEllipse(&ellipse, brush)
             }
@@ -663,98 +577,58 @@ impl Overlay {
         color2: (u8, u8, u8, u8),
         is_radial: bool,
     ) -> Result<(), OverlayError> {
-        let ellipse = D2D1_ELLIPSE {
-            point: D2D_POINT_2F {
-                x: center.0,
-                y: center.1,
-            },
-            radiusX: radius_x,
-            radiusY: radius_y,
-        };
+        if is_radial {
+            self.update_radial_gradient_brush(
+                center,
+                (radius_x, radius_y),
+                color1,
+                color2,
+            )?;
 
-        // Convert colors to D2D1_COLOR_F format
-        let start_color = D2D1_COLOR_F {
-            r: color1.0 as f32 / 255.0,
-            g: color1.1 as f32 / 255.0,
-            b: color1.2 as f32 / 255.0,
-            a: color1.3 as f32 / 255.0,
-        };
-        let end_color = D2D1_COLOR_F {
-            r: color2.0 as f32 / 255.0,
-            g: color2.1 as f32 / 255.0,
-            b: color2.2 as f32 / 255.0,
-            a: color2.3 as f32 / 255.0,
-        };
+            let brush = self.radial_gradient_brush.as_ref()
+                .ok_or(OverlayError::CreateRadialGradientBrushFailed)?;
 
-        let gradient_stops = [
-            D2D1_GRADIENT_STOP {
-                position: 0.0,
-                color: start_color,
-            },
-            D2D1_GRADIENT_STOP {
-                position: 1.0,
-                color: end_color,
-            },
-        ];
+            let ellipse = D2D1_ELLIPSE {
+                point: D2D_POINT_2F {
+                    x: center.0,
+                    y: center.1,
+                },
+                radiusX: radius_x,
+                radiusY: radius_y,
+            };
 
-        unsafe {
-            let render_target = self.target.as_ref()
-                .ok_or(OverlayError::NoRenderTarget)?;
+            self.draw_with_brush(
+                brush,
+                |target, brush| unsafe {
+                    target.FillEllipse(&ellipse, brush)
+                }
+            )
+        } else {
+            self.update_linear_gradient_brush(
+                (center.0 - radius_x, center.1),
+                (center.0 + radius_x, center.1),
+                color1,
+                color2,
+            )?;
 
-            let gradient_stop_collection = render_target
-                .CreateGradientStopCollection(
-                    &gradient_stops,
-                    D2D1_GAMMA_2_2,
-                    D2D1_EXTEND_MODE_CLAMP,
-                )
-                .map_err(|_| OverlayError::CreateGradientStopCollectionFailed)?;
+            let brush = self.linear_gradient_brush.as_ref()
+                .ok_or(OverlayError::CreateLinearGradientBrushFailed)?;
 
-            if is_radial {
-                // Create radial gradient brush
-                let radial_brush = render_target
-                    .CreateRadialGradientBrush(
-                        &D2D1_RADIAL_GRADIENT_BRUSH_PROPERTIES {
-                            center: D2D_POINT_2F {
-                                x: center.0,
-                                y: center.1,
-                            },
-                            gradientOriginOffset: D2D_POINT_2F {
-                                x: 0.0,
-                                y: 0.0,
-                            },
-                            radiusX: radius_x,
-                            radiusY: radius_y,
-                        },
-                        None,
-                        &gradient_stop_collection,
-                    )
-                    .map_err(|_| OverlayError::CreateRadialGradientBrushFailed)?;
+            let ellipse = D2D1_ELLIPSE {
+                point: D2D_POINT_2F {
+                    x: center.0,
+                    y: center.1,
+                },
+                radiusX: radius_x,
+                radiusY: radius_y,
+            };
 
-                render_target.FillEllipse(&ellipse, &radial_brush);
-            }
-            else {
-                // Create linear gradient brush
-                let linear_brush = render_target
-                    .CreateLinearGradientBrush(
-                        &D2D1_LINEAR_GRADIENT_BRUSH_PROPERTIES {
-                            startPoint: D2D_POINT_2F {
-                                x: center.0 - radius_x,
-                                y: center.1,
-                            },
-                            endPoint: D2D_POINT_2F {
-                                x: center.0 + radius_x,
-                                y: center.1,
-                            },
-                        },
-                        None,
-                        &gradient_stop_collection,
-                    )
-                    .map_err(|_| OverlayError::CreateLinearGradientBrushFailed)?;
-
-                render_target.FillEllipse(&ellipse, &linear_brush);
-            }
-
-            Ok(())
-        }
+            self.draw_with_brush(
+                brush,
+                |target, brush| unsafe {
+                    target.FillEllipse(&ellipse, brush)
+                }
+            )
+        }.map_err(|_| OverlayError::DrawFailed)
     }
 }
