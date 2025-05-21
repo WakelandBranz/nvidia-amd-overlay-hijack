@@ -150,6 +150,6 @@ The library uses a custom `OverlayError` type that covers various failure cases:
 - Gradient creation errors
 
 ## Notes
-- Requires NVIDIA GeForce Experience to be installed and running
+- Requires NVIDIA GeForce Experience or AMD Radeon Overlay to be installed and running. This has not yet been tested on AMD's Radeon Overlay.
 - Performance depends on system capabilities
 - Alpha blending is supported for all shapes and gradients
