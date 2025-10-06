@@ -1,10 +1,12 @@
 # Overlay Hijack
 
+Credits to [WilgnerFSDev](https://github.com/WilgnerFSDev) for creating the foundations of this project.
+
 A Rust library for hijacking the NVIDIA GeForce Experience and AMD Radeon overlays for custom rendering.
 
 Showcase: https://youtu.be/MKifNl3XCHQ
 
-Most code based off https://github.com/WilgnerFSDev/nvidia-overlay-hijack-rs/
+***Most code based off*** https://github.com/WilgnerFSDev/nvidia-overlay-hijack-rs/
 
 ## Basic Example
 ```rust
